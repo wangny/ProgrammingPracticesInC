@@ -1,0 +1,512 @@
+Stat=matrix(0,Simulation,4)
+#MMAF=read.csv("D:/rare Data/final Data describe 1030 gene/HHEoutput3_1030gene_MAF_MAP_GeneID.csv", header = F)
+MMAF=read.csv("D:/Documents/code/Kernel+Burden/Kernel+Burden/HHEoutput3_MAF_MAP_GeneID.csv", header = F)
+####################################
+####################################
+Stat[,1]=t(t(1:Simulation) )
+for (J in 1:Simulation)
+{
+################################################
+Stat[J,4]=sum( MMAF[MMAF[,3]==J,1]>=0.05 )
+Stat[J,3]=sum( MMAF[MMAF[,3]==J,1]>0)
+################################################
+Data=read.table(paste(file,"/FHdaffected",J,".txt",sep=""), header = F)
+if (  (  sum(Data[,8:length(Data[1,]) ])>0 )& (length( Data[1,] )>9 ) )
+{
+if ( sum( colSums(Data[,seq(8,length(Data[1,]),by=2)]+Data[,seq(9,length(Data[1,]),by=2)] )!=0 )>1 )
+{ DataJJ[J,1]=1 }
+}
+Stat[J,2]=( length(Data[1,])-7 )/2
+}
+DataJJ=t(t(1:Simulation))*DataJJ
+DataJJ1=DataJJ[DataJJ>0,1]
+DataJJ1
+rm(list=c('DataJJ','Data') )
+J=2
+Data=read.table(paste(file,"/FHdaffected",J,".txt",sep=""), header = F)
+########################################
+## COVX
+########################################
+COVXR=read.table(paste(file,"/FHdaffected_COVX",J,".txt",sep=""), header = F)
+########################################
+###########################
+nF=max(Data[,1])
+###########################
+nnP=matrix(0, max(Data[,1]),1)
+for ( JJ in 1: max(Data[,1]) )
+{
+nnP[JJ,1]=sum( Data[,1]==JJ )/2
+}
+rm(JJ)
+nMAF=(length(Data[1,])-7)/2
+sumnnP=sum(nnP)
+DataR=Data
+DDR=DataR[, seq( 8, (nMAF*2+7), 2)]+DataR[,seq(9,(nMAF*2+7), 2)]
+############################################################################
+###########################################################################################################
+## GEE
+###########################################################################################################
+if (nMAF>1)
+{
+GEER[J,1]=summary( gee(DataR[,7] ~COVXR[,1]+COVXR[,2]+ t( t( rowSums(DDR) ) ), id=DataR[,1], family=family, corstr=corstr) )[[7]][20]
+GEER[J,2]=2*(1-pnorm( abs( GEER[J,1]) ) )
+}
+###############################################################################
+###############################################################################
+examplemap=read.table("D:/Documents/code/Kernel+Burden/Kernel+Burden/examplemap0.txt", header = T)
+###############################################################################
+examplemap=examplemap[1:nMAF,]
+###############################################################################
+###############################################################################
+kinmat=matrix(0, sumnnP, sumnnP)
+for (  JJ in 1:length(nnP) )
+{
+if (JJ==1)
+{
+kinmat[1:nnP[1,1],1:nnP[1,1]]=0.25
+}
+if (JJ>1)
+{
+kinmat[ ( sum(nnP[1:(JJ-1),1])+1 ):  sum(nnP[1:JJ,1]) , ( sum(nnP[1:(JJ-1),1])+1 ):  sum(nnP[1:JJ,1]) ]=0.25
+}
+}
+rm(JJ)
+diag( kinmat)=0.5;
+########################################
+# DataR
+########################################
+GEEcoeff[J,]=summary( gee(DataR[,7] ~COVXR[,1]+COVXR[,2] , id=DataR[,1], family=family, corstr=corstr) )[[7]][1:5]
+########################################
+# DataR
+########################################
+workingcorrelation=summary( gee(DataR[,7] ~ COVXR[,1]+COVXR[,2], id=DataR[,1], family=family, corstr=corstr) )[[8]]
+######################################################################################################
+## mu
+######################################################################################################
+if ( family =="binomial" )
+{
+########################################
+# DataR
+########################################
+mu=t(  t( exp( COVXR[,2]*GEEcoeff[J,3]+COVXR[,1]*GEEcoeff[J,2]+GEEcoeff[J,1] )/(1+exp( COVXR[,2]*GEEcoeff[J,3]+COVXR[,1]*GEEcoeff[J,2]+GEEcoeff[J,1]  ) )   )    )
+}
+######################################################################################################
+######################################################################################################
+if (wt==1)
+{
+weight=rep(1,1,nMAF)
+}
+IDAA=1:nMAF
+IDAA=IDAA[ examplemap[,2]=="AA" ]
+########################################
+# DataR
+########################################
+IDDDR=IDAA[ colSums(DDR[, IDAA] )!=0]
+weightt=weight[IDDDR]
+########################################
+# DataR
+########################################
+DDRmaf <- apply(DDR[, IDDDR]/2, 2, mean)
+DDRr.mat <- cor(DDR[,IDDDR])
+DDRf <- weightt*sqrt(DDRmaf * (1 -DDRmaf))
+DDRfRmat <- (DDRf %o% DDRf) * DDRr.mat
+DDRfRmatt= sum( sum( DDRfRmat) )
+#############################################
+QQ=matrix(0,length(IDDDR),nF)
+BQC=matrix(0,nF,1)
+#############################################
+for ( nnF in 1:nF )
+{
+##########################################################
+## binomial
+##########################################################
+if ( family=="binomial" )
+{
+if (nnF==1)
+{
+###################################
+# DataR
+###################################
+Yi=DataR[1:(nnP[nnF,1]*r),7]
+mui=mu[1:(nnP[nnF,1]*r),1]
+stvi= sqrt(  mui*(1-mui) )
+Vi=diag( stvi )%*%workingcorrelation[1:(nnP[nnF,1]*r), 1:(nnP[nnF,1]*r)]%*%diag(stvi)
+ai=diag( mui*(1-mui) )
+Gi=DDR[1:(nnP[nnF,1]*r), IDDDR ]
+QQ[ ,nnF]=t(Gi)%*%ai%*%solve(Vi)%*%(Yi-mui)
+kinmati=kinmat[ 1:nnP[nnF,1],1:nnP[nnF,1] ]
+genetvari <- 2 * kinmati
+di<- sqrt(diag(genetvari))
+genetcori <-(genetvari/(di %o% di))
+###############################
+if (nnP[nnF,1]>1)
+{
+genetcorii=genetcori[ rep(1:nrow(genetcori),each=r), rep(1:ncol(genetcori),each=r) ]
+}
+if ( nnP[nnF,1]==1 )
+{
+genetcorii=matrix(genetcori, r,r)
+}
+################################
+BQC[nnF,1]=t( (Yi-mui) )%*%ai%*%solve(Vi)%*%genetcorii%*%solve(Vi)%*%ai%*%(Yi-mui)
+rm( list=c('Yi','mui','stvi','Vi','ai','Gi','kinmati','genetvari','di','genetcori','genetcorii' ) )
+}
+if (nnF>1)
+{
+###################################
+# DataR
+###################################
+Yi=DataR[ ( sum( nnP[ 1: ( nnF-1) ,1] )*r+1 ): ( sum( nnP[ 1: nnF ,1] )*r ) ,7]
+mui=mu[ ( sum( nnP[ 1: ( nnF-1) ,1] )*r+1 ):   (  sum( nnP[ 1: nnF ,1] )*r) ,1]
+stvi= sqrt(  mui*(1-mui) )
+Vi=diag( stvi )%*%workingcorrelation[1:(nnP[nnF,1]*r), 1:(nnP[nnF,1]*r)]%*%diag(stvi)
+ai=diag( mui*(1-mui) )
+Gi=DDR[  ( sum( nnP[ 1: ( nnF-1) ,1] )*r+1 ):   (  sum( nnP[ 1:  nnF ,1] )*r) , IDDDR ]
+QQ[ ,nnF]=t(Gi)%*%ai%*%solve(Vi)%*%(Yi-mui)
+kinmati=kinmat[ ( sum( nnP[ 1: sum( nnF-1) ,1] )+1 ):  sum( nnP[ 1: sum( nnF ) ,1] )  ,
+( sum( nnP[ 1: sum( nnF-1) ,1] )+1 ):  sum( nnP[ 1: sum( nnF ) ,1] )  ] ;
+genetvari <- 2 * kinmati
+di<- sqrt(diag(genetvari))
+genetcori <-(genetvari/(di %o% di))
+###############################
+if (nnP[nnF,1]>1)
+{
+genetcorii=genetcori[ rep(1:nrow(genetcori),each=r), rep(1:ncol(genetcori),each=r) ]
+}
+if( nnP[nnF,1]==1 )
+{
+genetcorii=matrix(genetcori,r,r)
+}
+##############################
+BQC[nnF,1]=t( (Yi-mui) )%*%ai%*%solve(Vi)%*%genetcorii%*%solve(Vi)%*%ai%*%(Yi-mui)
+rm( list=c('Yi','mui','stvi','Vi','ai','Gi','kinmati','genetvari','di','genetcori','genetcorii' ) )
+}
+############################################################
+}
+# binomial
+############################################################
+###############################################################
+}
+BQ[J,1]= sum(  rowSums(QQ)* weightt   )^2
+BAA[J,1]=BQ[J,1]/( sum( BQC )*2*DDRfRmatt )
+BAAP[J,1]= pchisq( BAA[J,1] , 1, lower.tail = FALSE)
+####################
+#Kernel
+####################
+KQ[J,1]= sum(   (  rowSums(QQ)* weightt   )^2      )
+VZQ=DDRfRmat*2*sum(BQC)
+EQ=sum(  diag( VZQ )  )
+VQ=2*sum(  diag( VZQ%*%VZQ )   )
+scaleK=2*EQ/VQ
+dK=2*EQ^2/VQ
+KAA[J,1]=KQ[J,1]*scaleK
+KAAP[J,1]=pchisq( KAA[J,1], dK, lower.tail=FALSE)
+eig <- eigen(VZQ  , symmetric = T, only.values = T)
+evals <- eig$values[eig$values > 1e-06 * eig$values[1]]
+KAAPD[J,1] <- davies(KQ[J,1], evals, acc = acc.davies)$Qq
+show(KQ[J,1])
+show(davies(KQ[J,1], evals, acc = acc.davies))
+help(davies)
+help(rep)
+a = matrix(3,3,3)
+show(nrow(a))
+help(nrow)
+show(rep(1:nrow(a),each=r))
+help(rep)
+show(A)
+show(a)
+J2=
+J=2
+J=2
+print(J)
+###########################################################################################################
+# Data
+###########################################################################################################
+Data=read.table(paste(file,"/FHdaffected",J,".txt",sep=""), header = F)
+########################################
+## COVX
+########################################
+COVXR=read.table(paste(file,"/FHdaffected_COVX",J,".txt",sep=""), header = F)
+########################################
+###########################
+nF=max(Data[,1])
+###########################
+nnP=matrix(0, max(Data[,1]),1)
+for ( JJ in 1: max(Data[,1]) )
+{
+nnP[JJ,1]=sum( Data[,1]==JJ )/2
+}
+rm(JJ)
+nMAF=(length(Data[1,])-7)/2
+sumnnP=sum(nnP)
+DataR=Data
+DDR=DataR[, seq( 8, (nMAF*2+7), 2)]+DataR[,seq(9,(nMAF*2+7), 2)]
+############################################################################
+###########################################################################################################
+## GEE
+###########################################################################################################
+if (nMAF>1)
+{
+GEER[J,1]=summary( gee(DataR[,7] ~COVXR[,1]+COVXR[,2]+ t( t( rowSums(DDR) ) ), id=DataR[,1], family=family, corstr=corstr) )[[7]][20]
+GEER[J,2]=2*(1-pnorm( abs( GEER[J,1]) ) )
+}
+###############################################################################
+###############################################################################
+examplemap=read.table("D:/Documents/code/Kernel+Burden/Kernel+Burden/examplemap0.txt", header = T)
+###############################################################################
+examplemap=examplemap[1:nMAF,]
+###############################################################################
+###############################################################################
+kinmat=matrix(0, sumnnP, sumnnP)
+for (  JJ in 1:length(nnP) )
+{
+if (JJ==1)
+{
+kinmat[1:nnP[1,1],1:nnP[1,1]]=0.25
+}
+if (JJ>1)
+{
+kinmat[ ( sum(nnP[1:(JJ-1),1])+1 ):  sum(nnP[1:JJ,1]) , ( sum(nnP[1:(JJ-1),1])+1 ):  sum(nnP[1:JJ,1]) ]=0.25
+}
+}
+rm(JJ)
+diag( kinmat)=0.5;
+########################################
+# DataR
+########################################
+GEEcoeff[J,]=summary( gee(DataR[,7] ~COVXR[,1]+COVXR[,2] , id=DataR[,1], family=family, corstr=corstr) )[[7]][1:5]
+########################################
+# DataR
+########################################
+workingcorrelation=summary( gee(DataR[,7] ~ COVXR[,1]+COVXR[,2], id=DataR[,1], family=family, corstr=corstr) )[[8]]
+######################################################################################################
+## mu
+######################################################################################################
+if ( family =="binomial" )
+{
+########################################
+# DataR
+########################################
+mu=t(  t( exp( COVXR[,2]*GEEcoeff[J,3]+COVXR[,1]*GEEcoeff[J,2]+GEEcoeff[J,1] )/(1+exp( COVXR[,2]*GEEcoeff[J,3]+COVXR[,1]*GEEcoeff[J,2]+GEEcoeff[J,1]  ) )   )    )
+}
+######################################################################################################
+######################################################################################################
+if (wt==1)
+{
+weight=rep(1,1,nMAF)
+}
+IDAA=1:nMAF
+IDAA=IDAA[ examplemap[,2]=="AA" ]
+########################################
+# DataR
+########################################
+IDDDR=IDAA[ colSums(DDR[, IDAA] )!=0]
+weightt=weight[IDDDR]
+########################################
+# DataR
+########################################
+DDRmaf <- apply(DDR[, IDDDR]/2, 2, mean)
+DDRr.mat <- cor(DDR[,IDDDR])
+DDRf <- weightt*sqrt(DDRmaf * (1 -DDRmaf))
+DDRfRmat <- (DDRf %o% DDRf) * DDRr.mat
+DDRfRmatt= sum( sum( DDRfRmat) )
+#############################################
+QQ=matrix(0,length(IDDDR),nF)
+BQC=matrix(0,nF,1)
+nnF = 1
+Yi=DataR[1:(nnP[nnF,1]*r),7]
+mui=mu[1:(nnP[nnF,1]*r),1]
+stvi= sqrt(  mui*(1-mui) )
+Vi=diag( stvi )%*%workingcorrelation[1:(nnP[nnF,1]*r), 1:(nnP[nnF,1]*r)]%*%diag(stvi)
+ai=diag( mui*(1-mui) )
+Gi=DDR[1:(nnP[nnF,1]*r), IDDDR ]
+QQ[ ,nnF]=t(Gi)%*%ai%*%solve(Vi)%*%(Yi-mui)
+kinmati=kinmat[ 1:nnP[nnF,1],1:nnP[nnF,1] ]
+genetvari <- 2 * kinmati
+di<- sqrt(diag(genetvari))
+genetcori <-(genetvari/(di %o% di))
+genetcorii=genetcori[ rep(1:nrow(genetcori),each=r), rep(1:ncol(genetcori),each=r) ]
+show( rep(1:nrow(genetcori),each=r))
+show(rep(1:ncol(genetcori),each=r))
+show(genetcorii)
+show(genetcori)
+BQC[nnF,1]=t( (Yi-mui) )%*%ai%*%solve(Vi)%*%genetcorii%*%solve(Vi)%*%ai%*%(Yi-mui)
+show(t( (Yi-mui) ))
+show(solve(Vi))
+show(genetcorii)
+show(t( (Yi-mui) )%*%ai%*%solve(Vi)%*%genetcorii%*%solve(Vi)%*%ai)
+show(Yi-mui)
+show(t( (Yi-mui) )%*%ai%*%solve(Vi)%*%genetcorii%*%solve(Vi)%*%ai%*%(Yi-mui))
+show(t( (Yi-mui) )%*%ai%*%solve(Vi)%*%genetcorii%*%solve(Vi)%*%ai%*%t((Yi-mui))
+)
+help("solve")
+show(workingcorrelation)
+write.table(workingcorrelation,file="workingcorrelation")
+write.table(workingcorrelation,file="workingcorrelation.txt")
+help(diag)
+Vi=diag( stvi )%*%workingcorrelation[1:(nnP[nnF,1]*r), 1:(nnP[nnF,1]*r)]%*%diag(stvi)
+show(stvi)
+show(diag( stvi ))
+DDRmaf <- apply(DDR[, IDDDR]/2, 2, mean)
+DDRr.mat <- cor(DDR[,IDDDR])
+DDRf <- weightt*sqrt(DDRmaf * (1 -DDRmaf))
+DDRfRmat <- (DDRf %o% DDRf) * DDRr.mat
+DDRfRmatt= sum( sum( DDRfRmat) )
+show(DDRr.mat)
+show(DDRf)
+J=3
+J=5
+Data=read.table(paste(file,"/FHdaffected",J,".txt",sep=""), header = F)
+########################################
+## COVX
+########################################
+COVXR=read.table(paste(file,"/FHdaffected_COVX",J,".txt",sep=""), header = F)
+########################################
+###########################
+nF=max(Data[,1])
+###########################
+nnP=matrix(0, max(Data[,1]),1)
+for ( JJ in 1: max(Data[,1]) )
+{
+nnP[JJ,1]=sum( Data[,1]==JJ )/2
+}
+rm(JJ)
+nMAF=(length(Data[1,])-7)/2
+sumnnP=sum(nnP)
+DataR=Data
+DDR=DataR[, seq( 8, (nMAF*2+7), 2)]+DataR[,seq(9,(nMAF*2+7), 2)]
+############################################################################
+###########################################################################################################
+## GEE
+###########################################################################################################
+if (nMAF>1)
+{
+GEER[J,1]=summary( gee(DataR[,7] ~COVXR[,1]+COVXR[,2]+ t( t( rowSums(DDR) ) ), id=DataR[,1], family=family, corstr=corstr) )[[7]][20]
+GEER[J,2]=2*(1-pnorm( abs( GEER[J,1]) ) )
+}
+###############################################################################
+###############################################################################
+examplemap=read.table("D:/Documents/code/Kernel+Burden/Kernel+Burden/examplemap0.txt", header = T)
+###############################################################################
+examplemap=examplemap[1:nMAF,]
+###############################################################################
+###############################################################################
+kinmat=matrix(0, sumnnP, sumnnP)
+for (  JJ in 1:length(nnP) )
+{
+if (JJ==1)
+{
+kinmat[1:nnP[1,1],1:nnP[1,1]]=0.25
+}
+if (JJ>1)
+{
+kinmat[ ( sum(nnP[1:(JJ-1),1])+1 ):  sum(nnP[1:JJ,1]) , ( sum(nnP[1:(JJ-1),1])+1 ):  sum(nnP[1:JJ,1]) ]=0.25
+}
+}
+rm(JJ)
+diag( kinmat)=0.5;
+########################################
+# DataR
+########################################
+GEEcoeff[J,]=summary( gee(DataR[,7] ~COVXR[,1]+COVXR[,2] , id=DataR[,1], family=family, corstr=corstr) )[[7]][1:5]
+########################################
+# DataR
+########################################
+workingcorrelation=summary( gee(DataR[,7] ~ COVXR[,1]+COVXR[,2], id=DataR[,1], family=family, corstr=corstr) )[[8]]
+mu=t(  t( exp( COVXR[,2]*GEEcoeff[J,3]+COVXR[,1]*GEEcoeff[J,2]+GEEcoeff[J,1] )/(1+exp( COVXR[,2]*GEEcoeff[J,3]+COVXR[,1]*GEEcoeff[J,2]+GEEcoeff[J,1]  ) )   )    )
+if (wt==1)
+{
+weight=rep(1,1,nMAF)
+}
+IDAA=1:nMAF
+IDAA=IDAA[ examplemap[,2]=="AA" ]
+########################################
+# DataR
+########################################
+IDDDR=IDAA[ colSums(DDR[, IDAA] )!=0]
+DDRmaf <- apply(DDR[, IDDDR]/2, 2, mean)
+DDRr.mat <- cor(DDR[,IDDDR])
+DDRf <- weightt*sqrt(DDRmaf * (1 -DDRmaf))
+DDRfRmat <- (DDRf %o% DDRf) * DDRr.mat
+DDRfRmatt= sum( sum( DDRfRmat) )
+IDAA=1:nMAF
+IDAA=IDAA[ examplemap[,2]=="AA" ]
+show(examplemap[,2]=="AA")
+show(IDAA[ examplemap[,2]=="AA" ])
+IDAA=1:nMAF
+IDAA=IDAA[ examplemap[,2]=="AA" ]
+IDAA=IDAA[ examplemap[,2]=="AA" ]
+show(IDAA)
+help("pchisq")
+GEEcoeff[J,]=summary( gee(DataR[,7] ~COVXR[,1]+COVXR[,2] , id=DataR[,1], family=family, corstr=corstr) )[[7]][1:5]
+show(GEEcoeff[J,])
+install.packages("Rcpp_0.10.6")
+install.packages("RInside")
+library(RInside)
+install.packages("RInside")
+library('pedgene')
+library('CompQuadForm')
+library('Matrix')
+library('kinship2')
+library('quadprog')
+library('gee')
+Simulation=5
+r=2
+wt=1
+acc.davies = 1e-05
+#######################################################################################################
+#######################################################################################################
+family="binomial"
+corstr="exchangeable"
+#######################################################################################################
+#######################################################################################################
+CC="PC"
+file=paste("D:/Documents/code/Kernel+Burden/Kernel+Burden/FDataGene1")
+#######################################################################################################
+GEER=matrix(1,Simulation,2)
+#######################################
+# DataR
+#######################################
+KQ=matrix(0,Simulation,1)
+BQ=matrix(0,Simulation,1)
+BAA=matrix(0,Simulation,1)
+BAAP=matrix(1,Simulation,1)
+KAA=matrix(0,Simulation,1)
+KAAP=matrix(1,Simulation,1)
+KAAPD=matrix(1,Simulation,1)
+######################################################################################################
+###################################
+# DataR
+###################################
+GEEcoeff=matrix(0,Simulation,5)
+##################################################################
+##################################################################
+DataJJ=matrix(0,Simulation,1)
+####################################
+####################################
+Stat=matrix(0,Simulation,4)
+#MMAF=read.csv("D:/rare Data/final Data describe 1030 gene/HHEoutput3_1030gene_MAF_MAP_GeneID.csv", header = F)
+MMAF=read.csv("D:/Documents/code/Kernel+Burden/Kernel+Burden/HHEoutput3_MAF_MAP_GeneID.csv", header = F)
+####################################
+####################################
+Stat[,1]=t(t(1:Simulation) )
+for (J in 1:Simulation)
+{
+################################################
+Stat[J,4]=sum( MMAF[MMAF[,3]==J,1]>=0.05 )
+Stat[J,3]=sum( MMAF[MMAF[,3]==J,1]>0)
+################################################
+Data=read.table(paste(file,"/FHdaffected",J,".txt",sep=""), header = F)
+if (  (  sum(Data[,8:length(Data[1,]) ])>0 )& (length( Data[1,] )>9 ) )
+{
+if ( sum( colSums(Data[,seq(8,length(Data[1,]),by=2)]+Data[,seq(9,length(Data[1,]),by=2)] )!=0 )>1 )
+{ DataJJ[J,1]=1 }
+}
+Stat[J,2]=( length(Data[1,])-7 )/2
+}
+DataJJ=t(t(1:Simulation))*DataJJ
+DataJJ1=DataJJ[DataJJ>0,1]
+DataJJ1
+rm(list=c('DataJJ','Data') )
+help(davies)
+help(davies)

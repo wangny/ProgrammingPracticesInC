@@ -1,0 +1,35 @@
+MOV  | REG  : 0    | CONST: 0    |
+MOV  | REG  : 1    | CONST: 0    |
+MOV  | REG  : 2    | CONST: 0    |
+MOV  | REG  : 3    | CONST: 0    |
+MOV  | ADDR : 0    | REG  : 0    |
+MOV  | ADDR : 4    | REG  : 1    |
+MOV  | ADDR : 8    | REG  : 2    |
+MOV  | REG  : 1    | ADDR : 0    |
+MOV  | REG  : 2    | ADDR : 8    |
+DIV  | REG  : 1    | REG  : 2    |
+**********************************
+ERROR divisor is not equal to 0
+**********************************
+MOV  | REG  : 2    | CONST: 33   |
+MUL  | REG  : 1    | REG  : 2    |
+SUB  | REG  : 0    | REG  : 1    |
+MOV  | REG  : 1    | CONST: 20   |
+MOV  | REG  : 2    | CONST: 31   |
+MUL  | REG  : 1    | REG  : 2    |
+ADD  | REG  : 0    | REG  : 1    |
+MOV  | REG  : 1    | CONST: 4    |
+ADD  | REG  : 0    | REG  : 1    |
+MOV  | REG  : 2    | CONST: 4    |
+ADD  | REG  : 0    | REG  : 2    |
+MOV  | ADDR : 4    | REG  : 0    |
+MOV  | REG  : 0    | ADDR : 0    |
+MOV  | REG  : 1    | ADDR : 4    |
+MOV  | REG  : 2    | ADDR : 8    |
+EXIT | CONST: 0    |             |
+----------------------------------
+exit normally
+
+r[0] = 0
+r[1] = 628
+r[2] = 0
